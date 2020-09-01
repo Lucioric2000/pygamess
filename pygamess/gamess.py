@@ -36,10 +36,11 @@ class Gamess:
 
     def __init__(self, jobname, gamin=None, gamout=None, gamess_path=None, rungms_suffix='',
                  executable_num='00', num_cores=None, reset=False, **options):
-        if gamin is None:
-            gamin = f"{jobname}.inp"
-        if gamout is None:
-            gamout = f"{gamout}.inp"
+        if jobname is not None:
+            if gamin is None:
+                gamin = f"{jobname}.inp"
+            if gamout is None:
+                gamout = f"{jobname}.log"
         self.jobname = jobname
         self.gamin = gamin
         self.gamout = gamout
