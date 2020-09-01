@@ -46,7 +46,7 @@ class Gamess:
             self.num_cores = num_cores
 
         if self.debug:
-            print("tmpdir", self.tempdir)
+            logger.info(f"tmpdir {self.tempdir}")
 
         # search gamess_path
         # 1. find environ
@@ -59,7 +59,7 @@ class Gamess:
                 gamess_path = list(filter(lambda f: os.path.isfile(os.path.join(f, 'ddikick.x')),
                                           os.environ['PATH'].split(':')))[0]
             except IndexError:
-                print("gamess_path not found")
+                logger.error("gamess_path not found")
                 exit()
 
         #  search rungms script
@@ -79,11 +79,11 @@ class Gamess:
         #Minimal options set. Options specified in the options arguments will be
         # merged into this options set
         self.options = {
-            'contrl': {'scftyp': 'rhf', 'runtyp': 'energy'},
-            'basis': {'gbasis': 'sto', 'ngauss': '3'},
-            'statpt': {'opttol': '0.0001', 'nstep': '20'},
-            'system': {'mwords': '30'},
-            'cis': {'nstate': '1'}
+            'CONTRL': {'SCFTYP': 'RHF', 'RUNTYP': 'ENERGY'},
+            'BASIS': {'GBASIS': 'STO', 'NGAUSS': '3'},
+            'STATPT': {'OPTTOL': '0.0001', 'NSTEP': '20'},
+            'SYSTEM': {'MWORDS': '30'},
+            'CIS': {'NSTATE': '1'}
         }
         for (category_name, categoptions) in options.items():
             if category_name in self.options:
@@ -122,13 +122,27 @@ class Gamess:
             pos = conf.GetAtomPosition(atom.GetIdx())
             section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
                 atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
-        assert 0, (section, self.parse_input())
+        self.parse_input()
+        #assert 0, (section, self.parse_input())
         return section
 
     def parse_input(self):
+        relinec = re.compile("\\!.*")
+        reline = re.compile("^(\\$(\\w+)\\s+)?(.*)(\\s+\\$END)?$")
+        section_title = None
         with open(self.gamin, 'r') as opf:
-            return opf.read()
-
+            for line in opf:
+                linstrip = line.strip().upper()
+                linstripc = relinec.sub(linstrip, "").strip()
+                if relinem := reline.match(linstripc):
+                    grps = relinem.groups()
+                    if grps[1] is not None:
+                        section_title = grps[1]
+                        assert 0, grps
+                    if grps[3] is not None:
+                        section_title = None
+                    print("lins", linstrip, linstripc, grps)
+                    #assert 0, (grps, linstrip)
 
     def send_report_e_mail(self, num_last_lines, email_configuration, a_priori_exception=None):
         lastlinesrun = subprocess.run(f"tail -n {num_last_lines} {self.gamout}", shell=True,
@@ -198,14 +212,14 @@ class Gamess:
 
     def print_header(self):
         """ gamess header"""
-        header = "{}{}{}".format(self.print_section('contrl'),
-                                 self.print_section('basis'),
-                                 self.print_section('system'))
-        if self.contrl['runtyp'] == 'optimize':
-            header += self.print_section('statpt')
+        header = "{}{}{}".format(self.print_section('CONTRL'),
+                                 self.print_section('BASIS'),
+                                 self.print_section('SYSTEM'))
+        if self.contrl['RUNTYP'] == 'OPTIMIZE':
+            header += self.print_section('STATPT')
 
-        if self.contrl.get('citype', None) == 'cis':
-            header += self.print_section('cis')
+        if self.contrl.get('CITYPE', None) == 'CIS':
+            header += self.print_section('CIS')
 
         return header
 
@@ -214,7 +228,7 @@ class Gamess:
         section = " ${} ".format(pref)
         for k, v in d.items():
             section += "{}={} ".format(k, v)
-        section += "$end\n"
+        section += "$END\n"
         return section
 
     def atom_section(self, mol):
@@ -247,29 +261,29 @@ class Gamess:
     def basis_set(self, basis_type):
         basis_type = basis_type.upper()
         if basis_type in ["STO3G", "STO-3G"]:
-            self.options['basis'] = {'gbasis': 'sto', 'ngauss': '3'}
+            self.options['BASIS'] = {'GBASIS': 'STO', 'NGAUSS': '3'}
         elif basis_type in ["321G", "3-21G"]:
-            self.options['basis'] = {'gbasis': 'N21', 'ngauss': '3'}
+            self.options['BASIS'] = {'GBASIS': 'N21', 'NGAUSS': '3'}
         elif basis_type in ["631G", "6-31G"]:
-            self.options['basis'] = {'gbasis': 'N31', 'ngauss': '6'}
+            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6'}
         elif basis_type in ["6311G", "6-311G"]:
-            self.options['basis'] = {'gbasis': 'N311', 'ngauss': '6'}
+            self.options['BASIS'] = {'GBASIS': 'N311', 'NGAUSS': '6'}
         elif basis_type in ["631G*", "6-31G*", "6-31G(D)", "631G(D)"]:
-            self.options['basis'] = {'gbasis': 'N31', 'ngauss': '6', 'ndfunc': '1'}
+            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1'}
         elif basis_type in ["631G**", "6-31G**", "631GDP", "6-31G(D,P)", "631G(D,P)"]:
-            self.options['basis'] = {'gbasis': 'N31', 'ngauss': '6', 'ndfunc': '1', 'npfunc': '1'}
+            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1', 'NPFUNC': '1'}
         elif basis_type in ["631+G**", "6-31+G**", "631+GDP", "6-31+G(D,P)", "631+G(D,P)"]:
-            self.options['basis'] = {'gbasis': 'n31', 'ngauss': '6', 'ndfunc': '1', 'npfunc': '1',
-                                     'diffsp': '.t.', }
+            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1', 'NPFUNC': '1',
+                                     'DIFFSP': '.T.', }
         elif basis_type in ["AM1"]:
-            self.options['basis'] = {'gbasis': 'am1'}
+            self.options['BASIS'] = {'GBASIS': 'AM1'}
         elif basis_type in ["PM3"]:
-            self.options['basis'] = {'gbasis': 'pm3'}
+            self.options['BASIS'] = {'GBASIS': 'PM3'}
         elif basis_type in ["MNDO"]:
-            self.options['basis'] = {'gbasis': 'mndo'}
+            self.options['BASIS'] = {'GBASIS': 'MNDO'}
         else:
             logger.error("basis type not found")
-        return self.options['basis']
+        return self.options['BASIS']
 
     def run_type(self, runtype):
         self.options['contrl']['runtyp'] = runtype
@@ -383,8 +397,8 @@ class GamessFromInputFile(Gamess):
         self.jobname = jobname
         self.gamin = gamin
         self.gamout = gamout
-        self.tempdir = mkdtemp()
-        self.debug = os.environ.get('debug', False)
+        #self.tempdir = mkdtemp()
+        #self.debug = os.environ.get('debug', False)
         self.executable_num = executable_num
         self.err_lines = 10
         if num_cores is None:
@@ -392,8 +406,8 @@ class GamessFromInputFile(Gamess):
         else:
             self.num_cores = num_cores
 
-        if self.debug:
-            print("tmpdir", self.tempdir)
+        #if self.debug:
+        #    print("tmpdir", self.tempdir)
 
         # search gamess_path
         # 1. find environ
@@ -427,6 +441,7 @@ class GamessFromInputFile(Gamess):
         # merged into this options set
         if reset:
             self.reset()
+
     def run(self):
         """"""
         command = "%s %s %s %i > %s" % (self.rungms, self.gamin, self.executable_num,
@@ -445,6 +460,9 @@ class GamessFromInputFile(Gamess):
         #if not self.debug:
         #    os.unlink(gamin)
         #    os.unlink(gamout)
+    def __del__(self):
+        # This subclass does not do anything in __del__
+        pass
 
 
 
