@@ -7,14 +7,21 @@ smtp:
   password: <password>
 success:
   subject: "Sucessful Gamess execution"
-  body: "The run in {0} ended successfully. Last lines\n:{1}."
+  body: "The run in {gamess} ended successfully.\nLast lines\n:{last_lines}."
   receivers:
-  - user1@example.com
-  - user2@example.com
+  - lucioric2000@hotmail.com
+  #- lucioric2000@gmail.com
+fail:
+  #The program completed well, but the simulation didn't get to the expected results
+  subject: "Errored Gamess execution"
+  body: "The run in {gamess} ended with the error {gamess.completed_gamess.returncode}: {error_message}.\nLast lines\n:{last_lines}."
+  receivers:
+  - lucioric2000@hotmail.com
+  #- lucioric2000@gmail.com
 error:
   #The program uses Formated String literals. with the exception object as the first substitutor.
   subject: "Errored Gamess execution"
-  body: "The run in {0} ended with the error code {1}. Last lines\n:{2}."
+  body: "The run in {gamess} ended with the error {error}.\nLast lines\n:{last_lines}."
   receivers:
-  - user1@example.com
-  - user2@example.com
+  - lucioric2000@hotmail.com
+  #- lucioric2000@gmail.com

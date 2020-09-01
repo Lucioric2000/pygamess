@@ -1,5 +1,5 @@
 from ruamel.yaml import YAML
-import argparse, subprocess, logging
+import argparse, logging
 from . import gamess
 import os
 
@@ -24,13 +24,13 @@ if args.pygamess_log_file is None:
 yaml = YAML(typ="safe")
 with open(args.emails_yml, "r") as opf:
     configuration = yaml.load(opf)
-g = gamess.Gamess(rungms_suffix=args.rungms_suffix, executable_num=args.executable_num,
-	num_cores=args.num_cores, reset=args.reset)
+g = gamess.Gamess(inputfilesplutext[0], rungms_suffix=args.rungms_suffix, executable_num=args.executable_num,
+	num_cores=args.num_cores, reset=args.reset, input_file=args.input_file, output_file=args.output_file)
 rootlogger = logging.getLogger()
 logger.info(f"Writing pygamess log to {args.pygamess_log_file}")
 rootlogger.addHandler(logging.FileHandler(args.pygamess_log_file, mode="w"))
 try:
-    g.run_input(args.input_file, inputfilesplutext[0], args.output_file)
+    g.run_input()
     bdy = g.send_report_e_mail(args.num_last_lines, configuration)
 except KeyboardInterrupt as exc:
     logger.error(f"Exception when runiing GAMESS: {exc}")

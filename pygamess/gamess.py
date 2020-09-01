@@ -34,8 +34,15 @@ class GamessError(Exception):
 class Gamess:
     """GAMESS WRAPPER"""
 
-    def __init__(self, gamess_path=None, rungms_suffix='', executable_num='00',
-        num_cores=None, reset=False, **options):
+    def __init__(self, jobname, gamin=None, gamout=None, gamess_path=None, rungms_suffix='',
+                 executable_num='00', num_cores=None, reset=False, **options):
+        if gamin is None:
+            gamin = f"{jobname}.inp"
+        if gamout is None:
+            gamout = f"{gamout}.inp"
+        self.jobname = jobname
+        self.gamin = gamin
+        self.gamout = gamout
         self.tempdir = mkdtemp()
         self.debug = os.environ.get('debug', False)
         self.executable_num = executable_num
@@ -57,7 +64,7 @@ class Gamess:
         if gamess_path is None:
             try:
                 gamess_path = list(filter(lambda f: os.path.isfile(os.path.join(f, 'ddikick.x')),
-                                     os.environ['PATH'].split(':')))[0]
+                                          os.environ['PATH'].split(':')))[0]
             except IndexError:
                 print("gamess_path not found")
                 exit()
@@ -85,21 +92,11 @@ class Gamess:
             'system': {'mwords': '30'},
             'cis': {'nstate': '1'}
         }
-        """self.contrl = {'scftyp': 'rhf', 'runtyp': 'energy'}
-        self.basis = {'gbasis': 'sto', 'ngauss': '3'}
-        self.statpt = {'opttol': '0.0001', 'nstep': '20', }
-        self.system = {'mwords': '30'}
-        self.cis = {'nstate': '1'}"""
-
-        #  Todo: rewrite this
-#        for configname in ('contrl', 'basis', 'statpt', 'system', 'cis'):
         for (category_name, categoptions) in options.items():
             if category_name in self.options:
                 self.options[category_name].update(categoptions)
             else:
-                self.options[categorty_name]=categoptions
-            #dct = getattr(self, configname)
-            #dct.update(options.get(configname, {}))
+                self.options[category_name] = categoptions
 
         if reset:
             self.reset()
@@ -109,7 +106,7 @@ class Gamess:
         regexpstring = re.compile(r"^\s*set\s((USER)?SCR)=(.*)")
         command = fr"grep -Pi '^\s*set\s(USER)?SCR=' {self.rungms}"
         with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True) as coprd:
+                              stderr=subprocess.PIPE, text=True) as coprd:
             returncode = coprd.wait()
             for line in coprd.stdout:
                 match = regexpstring.match(line.rstrip())
@@ -121,10 +118,20 @@ class Gamess:
     def reset(self):
         subprocess.run("pkill gamess", shell=True)
         scratches = self.discover_scratch_folders()
-        # delcmd = "rm -rf /scr1/lucioric/* /home/lucioric/gamess/gamess/scr/*"
         delcmd = "rm -rf {0}".format(" ".join(f"{pth}/*" for pth in scratches.values()))
         delproc = subprocess.run(delcmd, shell=True)
         delproc.check_returncode()
+
+    def compare_mol2entry(self, mol):
+        conf = mol.GetConformer(0)
+        section = ""
+        for atom in mol.GetAtoms():
+            pos = conf.GetAtomPosition(atom.GetIdx())
+            section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
+                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
+        assert 0, section
+        return section
+
 
     def send_report_e_mail(self, num_last_lines, email_configuration, a_priori_exception=None):
         lastlinesrun = subprocess.run(f"tail -n {num_last_lines} {self.gamout}", shell=True,
@@ -133,20 +140,21 @@ class Gamess:
         if a_priori_exception is not None:
             error = a_priori_exception
             which = "error"
-            email_body = email_configuration[which]["body"].format(gamess=self,
-                error=error, last_lines=lastlinesrun.stdout)
+            email_body = email_configuration[which]["body"].format(
+                gamess=self, error=error, last_lines=lastlinesrun.stdout)
         else:
             error = self.completed_gamess.stderr
             if error:
                 which = "fail"
-                email_body = email_configuration[which]["body"].format(gamess=self,
-                    error_message=error, last_lines=lastlinesrun.stdout)
+                email_body = email_configuration[which]["body"].format(
+                    gamess=self, error_message=error, last_lines=lastlinesrun.stdout)
             else:
                 which = "success"
-                email_body = email_configuration[which]["body"].format(gamess=self,
-                    last_lines=lastlinesrun.stdout)
+                logger.info(f"emc {email_configuration}")
+                email_body = email_configuration[which]["body"].format(
+                    gamess=self, last_lines=lastlinesrun.stdout)
         email.smtplib_email(email_body, email_configuration[which]["receivers"],
-            email_configuration[which]["subject"], email_configuration["smtp"])
+                            email_configuration[which]["subject"], email_configuration["smtp"])
 
     def parse_gamout(self, gamout, mol):
         err_re = re.compile('^( \*\*\*|Error:)')
@@ -168,8 +176,8 @@ class Gamess:
 
         for m in coord_re.finditer(out_str):
             atom_idx = 0
-            for l in m.group(2).split("\n"):
-                coord = l.split()
+            for lv in m.group(2).split("\n"):
+                coord = lv.split()
                 cds = [float(coord[2]), float(coord[3]), float(coord[4])]
                 conf.SetAtomPosition(atom_idx, cds)
                 atom_idx += 1
@@ -185,13 +193,10 @@ class Gamess:
         else:
             return nmol
 
-    def run_input(self, gamin, jobname, gamout):
+    def run_input(self):
         """"""
-        self.jobname = jobname
-        self.gamin = gamin
-        self.gamout = gamout
-        command = "%s %s %s %i > %s" % (self.rungms, gamin, self.executable_num,
-            self.num_cores, gamout)
+        command = "%s %s %s %i > %s" % (self.rungms, self.gamin, self.executable_num,
+                                        self.num_cores, self.gamout)
         self.start_time = datetime.datetime.now()
         logger.info(f"Executing {command}")
         self.completed_gamess = subprocess.run(command, shell=True)
@@ -240,7 +245,8 @@ class Gamess:
         section = ""
         for atom in mol.GetAtoms():
             pos = conf.GetAtomPosition(atom.GetIdx())
-            section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
+            section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
+                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
         return section
 
     def input(self, mol):
@@ -257,7 +263,7 @@ class Gamess:
 
     def __del__(self):
         if not self.debug:
-            logger.info(f"deleting tempdir {self.tempdir}")
+            logger.info(f"deleting tempdir {self.tempdir!r}")
             rmtree(self.tempdir)
 
     def basis_set(self, basis_type):
@@ -275,7 +281,8 @@ class Gamess:
         elif basis_type in ["631G**", "6-31G**", "631GDP", "6-31G(D,P)", "631G(D,P)"]:
             self.options['basis'] = {'gbasis': 'N31', 'ngauss': '6', 'ndfunc': '1', 'npfunc': '1'}
         elif basis_type in ["631+G**", "6-31+G**", "631+GDP", "6-31+G(D,P)", "631+G(D,P)"]:
-            self.options['basis'] = {'gbasis': 'n31', 'ngauss': '6', 'ndfunc': '1', 'npfunc': '1', 'diffsp': '.t.', }
+            self.options['basis'] = {'gbasis': 'n31', 'ngauss': '6', 'ndfunc': '1', 'npfunc': '1',
+                                     'diffsp': '.t.', }
         elif basis_type in ["AM1"]:
             self.options['basis'] = {'gbasis': 'am1'}
         elif basis_type in ["PM3"]:
@@ -296,11 +303,10 @@ class Gamess:
         self.gamin = self.write_file(mol)
         self.gamout = self.tempdir + "/" + self.jobname + ".out"
         #  exec rungms
-        #os.chdir(self.tempdir)
+        # os.chdir(self.tempdir)
         cmd = "%s %s> %s  2> /dev/null" % (self.rungms, self.jobname, self.gamout)
-        logger.info(f"Executeing exec_rungms with command {cmd}")
+        logger.info(f"Executing exec_rungms with command {cmd}")
         self.completed_gamess = subprocess.run(cmd, shell=True, cwd=self.tempdir)
-        #os.system("%s %s> %s  2> /dev/null" % (self.rungms, self.jobname, self.gamout))
 
         new_mol = self.parse_gamout(self.gamout, mol)
 
@@ -376,7 +382,6 @@ class Gamess:
 
         logger.info(f"Executeing py_rungms with command {exec_string}")
         self.completed_gamess = subprocess.run(exec_string, shell=True)
-        #os.system(exec_string)
 
         new_mol = self.parse_gamout(self.gamout, mol)
 
