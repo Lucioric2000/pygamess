@@ -34,16 +34,8 @@ class GamessError(Exception):
 class Gamess:
     """GAMESS WRAPPER"""
 
-    def __init__(self, jobname, gamin=None, gamout=None, gamess_path=None, rungms_suffix='',
+    def __init__(self, jobname, gamess_path = None, rungms_suffix='',
                  executable_num='00', num_cores=None, reset=False, **options):
-        if jobname is not None:
-            if gamin is None:
-                gamin = f"{jobname}.inp"
-            if gamout is None:
-                gamout = f"{jobname}.log"
-        self.jobname = jobname
-        self.gamin = gamin
-        self.gamout = gamout
         self.tempdir = mkdtemp()
         self.debug = os.environ.get('debug', False)
         self.executable_num = executable_num
@@ -130,8 +122,12 @@ class Gamess:
             pos = conf.GetAtomPosition(atom.GetIdx())
             section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
                 atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
-        assert 0, section
+        assert 0, (section, self.parse_input())
         return section
+
+    def parse_input(self):
+        with open(self.gamin, 'r') as opf:
+            return opf.read()
 
 
     def send_report_e_mail(self, num_last_lines, email_configuration, a_priori_exception=None):
@@ -193,25 +189,6 @@ class Gamess:
             raise GamessError(err_message)
         else:
             return nmol
-
-    def run_input(self):
-        """"""
-        command = "%s %s %s %i > %s" % (self.rungms, self.gamin, self.executable_num,
-                                        self.num_cores, self.gamout)
-        self.start_time = datetime.datetime.now()
-        logger.info(f"Executing {command}")
-        self.completed_gamess = subprocess.run(command, shell=True)
-        self.end_time = datetime.datetime.now()
-        self.elapsed_time = self.end_time - self.start_time
-        logger.info(f"Status code: {self.completed_gamess.returncode}")
-        if self.completed_gamess.returncode != 0:
-            logger.error("Gamess error: {0}".format(self.completed_gamess.stderr))
-        #new_mol = self.parse_gamout(gamout)
-
-        #$os.chdir(self.cwd)
-        #if not self.debug:
-        #    os.unlink(gamin)
-        #    os.unlink(gamout)
 
     def run(self, mol, use_rungms=False):
         self.jobname = randstr(6)
@@ -330,7 +307,8 @@ class Gamess:
         if not os.path.isfile(ddikick):
             raise IOError("ddikick not found")
 
-        gamesses = [f for f in os.listdir(gamess_path) if f.startswith('gamess') and f.endswith('.x')]
+        gamesses = [f for f in os.listdir(gamess_path)
+                    if f.startswith('gamess') and f.endswith('.x')]
         if len(gamesses) < 1:
             raise IOError("gamess.*.x not found")
         gamess = os.path.join(gamess_path, gamesses[0])
@@ -392,6 +370,82 @@ class Gamess:
             os.unlink(self.gamout)
 
         return new_mol
+
+
+class GamessFromInputFile(Gamess):
+    def __init__(self, jobname, gamin=None, gamout=None, gamess_path=None, rungms_suffix='',
+                 executable_num='00', num_cores=None, reset=False):
+        if jobname is not None:
+            if gamin is None:
+                gamin = f"{jobname}.inp"
+            if gamout is None:
+                gamout = f"{jobname}.log"
+        self.jobname = jobname
+        self.gamin = gamin
+        self.gamout = gamout
+        self.tempdir = mkdtemp()
+        self.debug = os.environ.get('debug', False)
+        self.executable_num = executable_num
+        self.err_lines = 10
+        if num_cores is None:
+            self.num_cores = multiprocessing.cpu_count()
+        else:
+            self.num_cores = num_cores
+
+        if self.debug:
+            print("tmpdir", self.tempdir)
+
+        # search gamess_path
+        # 1. find environ
+        # 2. find path which include ddikick.x
+        if gamess_path is None:
+            gamess_path = os.environ.get('GAMESS_HOME', None)
+
+        if gamess_path is None:
+            try:
+                gamess_path = list(filter(lambda f: os.path.isfile(os.path.join(f, 'ddikick.x')),
+                                          os.environ['PATH'].split(':')))[0]
+            except IndexError:
+                print("gamess_path not found")
+                exit()
+
+        #  search rungms script
+        rungms = None
+        possible_paths = [os.path.join(d, f'rungms{rungms_suffix}')
+                          for d in os.environ['PATH'].split(':')]
+        try:
+            rungms = list(filter(lambda f: os.path.isfile(f), possible_paths))[0]
+        except IndexError:
+            pass
+
+        self.rungms = rungms
+        self.gamess_path = gamess_path
+        self.jobname = ''
+        #self.cwd = os.getcwd()
+
+        #Minimal options set. Options specified in the options arguments will be
+        # merged into this options set
+        if reset:
+            self.reset()
+    def run(self):
+        """"""
+        command = "%s %s %s %i > %s" % (self.rungms, self.gamin, self.executable_num,
+                                        self.num_cores, self.gamout)
+        self.start_time = datetime.datetime.now()
+        logger.info(f"Executing {command}")
+        self.completed_gamess = subprocess.run(command, shell=True)
+        self.end_time = datetime.datetime.now()
+        self.elapsed_time = self.end_time - self.start_time
+        logger.info(f"Status code: {self.completed_gamess.returncode}")
+        if self.completed_gamess.returncode != 0:
+            logger.error("Gamess error: {0}".format(self.completed_gamess.stderr))
+        #new_mol = self.parse_gamout(gamout)
+
+        #$os.chdir(self.cwd)
+        #if not self.debug:
+        #    os.unlink(gamin)
+        #    os.unlink(gamout)
+
 
 
 if __name__ == '__main__':
