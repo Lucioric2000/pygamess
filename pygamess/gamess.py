@@ -34,7 +34,7 @@ class GamessError(Exception):
 class Gamess:
     """GAMESS WRAPPER"""
 
-    def __init__(self, jobname, gamess_path = None, rungms_suffix='',
+    def __init__(self, jobname, gamess_path=None, rungms_suffix='',
                  executable_num='00', num_cores=None, reset=False, **options):
         self.tempdir = mkdtemp()
         self.debug = os.environ.get('debug', False)
