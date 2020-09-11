@@ -14,13 +14,15 @@ import socket
 import re
 import os
 
-logging.basicConfig(level=logging.INFO)  # Configures logging to level INFO if the logging has not been configured
+logging.basicConfig(
+    level=logging.INFO
+)  # Configures logging to level INFO if the logging has not been configured
 logger = logging.getLogger(__name__)
 
 
 def randstr(n):
     """make a random string"""
-    return ''.join(choice('abcdefghijklmnopqrstuvwxyz') for i in range(n))
+    return "".join(choice("abcdefghijklmnopqrstuvwxyz") for i in range(n))
 
 
 class GamessError(Exception):
@@ -34,10 +36,18 @@ class GamessError(Exception):
 class Gamess:
     """GAMESS WRAPPER"""
 
-    def __init__(self, jobname, gamess_path=None, rungms_suffix='',
-                 executable_num='00', num_cores=None, reset=False, **options):
+    def __init__(
+        self,
+        jobname,
+        gamess_path=None,
+        rungms_suffix="",
+        executable_num="00",
+        num_cores=None,
+        reset=False,
+        **options,
+    ):
         self.tempdir = mkdtemp()
-        self.debug = os.environ.get('debug', False)
+        self.debug = os.environ.get("debug", False)
         self.executable_num = executable_num
         self.err_lines = 10
         if num_cores is None:
@@ -52,20 +62,26 @@ class Gamess:
         # 1. find environ
         # 2. find path which include ddikick.x
         if gamess_path is None:
-            gamess_path = os.environ.get('GAMESS_HOME', None)
+            gamess_path = os.environ.get("GAMESS_HOME", None)
 
         if gamess_path is None:
             try:
-                gamess_path = list(filter(lambda f: os.path.isfile(os.path.join(f, 'ddikick.x')),
-                                          os.environ['PATH'].split(':')))[0]
+                gamess_path = list(
+                    filter(
+                        lambda f: os.path.isfile(os.path.join(f, "ddikick.x")),
+                        os.environ["PATH"].split(":"),
+                    )
+                )[0]
             except IndexError:
                 logger.error("gamess_path not found")
                 exit()
 
         #  search rungms script
         rungms = None
-        possible_paths = [os.path.join(d, f'rungms{rungms_suffix}')
-                          for d in os.environ['PATH'].split(':')]
+        possible_paths = [
+            os.path.join(d, f"rungms{rungms_suffix}")
+            for d in os.environ["PATH"].split(":")
+        ]
         try:
             rungms = list(filter(lambda f: os.path.isfile(f), possible_paths))[0]
         except IndexError:
@@ -73,17 +89,17 @@ class Gamess:
 
         self.rungms = rungms
         self.gamess_path = gamess_path
-        self.jobname = ''
-        #self.cwd = os.getcwd()
+        self.jobname = ""
+        # self.cwd = os.getcwd()
 
-        #Minimal options set. Options specified in the options arguments will be
+        # Minimal options set. Options specified in the options arguments will be
         # merged into this options set
         self.options = {
-            'CONTRL': {'SCFTYP': 'RHF', 'RUNTYP': 'ENERGY'},
-            'BASIS': {'GBASIS': 'STO', 'NGAUSS': '3'},
-            'STATPT': {'OPTTOL': '0.0001', 'NSTEP': '20'},
-            'SYSTEM': {'MWORDS': '30'},
-            'CIS': {'NSTATE': '1'}
+            "CONTRL": {"SCFTYP": "RHF", "RUNTYP": "ENERGY"},
+            "BASIS": {"GBASIS": "STO", "NGAUSS": "3"},
+            "STATPT": {"OPTTOL": "0.0001", "NSTEP": "20"},
+            "SYSTEM": {"MWORDS": "30"},
+            "CIS": {"NSTATE": "1"},
         }
         for (category_name, categoptions) in options.items():
             if category_name in self.options:
@@ -98,8 +114,13 @@ class Gamess:
         scratches = {}
         regexpstring = re.compile(r"^\s*set\s((USER)?SCR)=(.*)")
         command = fr"grep -Pi '^\s*set\s(USER)?SCR=' {self.rungms}"
-        with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, text=True) as coprd:
+        with subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ) as coprd:
             returncode = coprd.wait()
             for line in coprd.stdout:
                 match = regexpstring.match(line.rstrip())
@@ -121,16 +142,17 @@ class Gamess:
         for atom in mol.GetAtoms():
             pos = conf.GetAtomPosition(atom.GetIdx())
             section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
-                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
+                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z
+            )
         self.parse_input()
-        #assert 0, (section, self.parse_input())
+        # assert 0, (section, self.parse_input())
         return section
 
     def parse_input(self):
         relinec = re.compile("\\!.*")
         reline = re.compile("^(\\$(\\w+)\\s+)?(.*)(\\s+\\$END)?$")
         section_title = None
-        with open(self.gamin, 'r') as opf:
+        with open(self.gamin, "r") as opf:
             for line in opf:
                 linstrip = line.strip().upper()
                 linstripc = relinec.sub(linstrip, "").strip()
@@ -142,36 +164,51 @@ class Gamess:
                     if grps[3] is not None:
                         section_title = None
                     print("lins", linstrip, linstripc, grps)
-                    #assert 0, (grps, linstrip)
+                    # assert 0, (grps, linstrip)
 
-    def send_report_e_mail(self, num_last_lines, email_configuration, a_priori_exception=None):
-        lastlinesrun = subprocess.run(f"tail -n {num_last_lines} {self.gamout}", shell=True,
-                                      stdout=subprocess.PIPE, text=True)
+    def send_report_e_mail(
+        self, num_last_lines, email_configuration, a_priori_exception=None
+    ):
+        lastlinesrun = subprocess.run(
+            f"tail -n {num_last_lines} {self.gamout}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
         logger.info(f"GAMESS last {num_last_lines} lines: {lastlinesrun.stdout}")
         if a_priori_exception is not None:
             error = a_priori_exception
             which = "error"
             email_body = email_configuration[which]["body"].format(
-                gamess=self, error=error, last_lines=lastlinesrun.stdout)
+                gamess=self, error=error, last_lines=lastlinesrun.stdout
+            )
         else:
             error = self.completed_gamess.stderr
             if error:
                 which = "fail"
                 email_body = email_configuration[which]["body"].format(
-                    gamess=self, error_message=error, last_lines=lastlinesrun.stdout)
+                    gamess=self, error_message=error, last_lines=lastlinesrun.stdout
+                )
             else:
                 which = "success"
                 logger.info(f"emc {email_configuration}")
                 email_body = email_configuration[which]["body"].format(
-                    gamess=self, last_lines=lastlinesrun.stdout)
-        email.smtplib_email(email_body, email_configuration[which]["receivers"],
-                            email_configuration[which]["subject"], email_configuration["smtp"])
+                    gamess=self, last_lines=lastlinesrun.stdout
+                )
+        email.smtplib_email(
+            email_body,
+            email_configuration[which]["receivers"],
+            email_configuration[which]["subject"],
+            email_configuration["smtp"],
+        )
 
     def parse_gamout(self, gamout, mol):
-        err_re = re.compile('^( \*\*\*|Error:)')
-        eng_re = re.compile('TOTAL ENERGY =(.*)\n')
-        coord_re = re.compile('COORDINATES OF ALL ATOMS ARE (.*?)------------\n(.*?)\n\n', re.DOTALL)
-        #if self.basis['gbasis'] in ['am1', 'pm3', 'mndo']:
+        err_re = re.compile("^( \*\*\*|Error:)")
+        eng_re = re.compile("TOTAL ENERGY =(.*)\n")
+        coord_re = re.compile(
+            "COORDINATES OF ALL ATOMS ARE (.*?)------------\n(.*?)\n\n", re.DOTALL
+        )
+        # if self.basis['gbasis'] in ['am1', 'pm3', 'mndo']:
         #    eng_re = re.compile(' FINAL .+ ENERGY IS')
 
         err_message = ""
@@ -212,14 +249,16 @@ class Gamess:
 
     def print_header(self):
         """ gamess header"""
-        header = "{}{}{}".format(self.print_section('CONTRL'),
-                                 self.print_section('BASIS'),
-                                 self.print_section('SYSTEM'))
-        if self.contrl['RUNTYP'] == 'OPTIMIZE':
-            header += self.print_section('STATPT')
+        header = "{}{}{}".format(
+            self.print_section("CONTRL"),
+            self.print_section("BASIS"),
+            self.print_section("SYSTEM"),
+        )
+        if self.contrl["RUNTYP"] == "OPTIMIZE":
+            header += self.print_section("STATPT")
 
-        if self.contrl.get('CITYPE', None) == 'CIS':
-            header += self.print_section('CIS')
+        if self.contrl.get("CITYPE", None) == "CIS":
+            header += self.print_section("CIS")
 
         return header
 
@@ -238,12 +277,14 @@ class Gamess:
         for atom in mol.GetAtoms():
             pos = conf.GetAtomPosition(atom.GetIdx())
             section += "{:<3} {:>4}.0   {:> 15.10f} {:> 15.10f} {: 15.10f} \n".format(
-                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z)
+                atom.GetSymbol(), atom.GetAtomicNum(), pos.x, pos.y, pos.z
+            )
         return section
 
     def input(self, mol):
-        return "{0} $DATA\n6324\nC1\n{1} $END\n".format(self.print_header(),
-                                                        self.atom_section(mol))
+        return "{0} $DATA\n6324\nC1\n{1} $END\n".format(
+            self.print_header(), self.atom_section(mol)
+        )
 
     def write_file(self, mol):
         gamess_input_file = os.path.join(self.tempdir, "{}.inp".format(self.jobname))
@@ -261,35 +302,51 @@ class Gamess:
     def basis_set(self, basis_type):
         basis_type = basis_type.upper()
         if basis_type in ["STO3G", "STO-3G"]:
-            self.options['BASIS'] = {'GBASIS': 'STO', 'NGAUSS': '3'}
+            self.options["BASIS"] = {"GBASIS": "STO", "NGAUSS": "3"}
         elif basis_type in ["321G", "3-21G"]:
-            self.options['BASIS'] = {'GBASIS': 'N21', 'NGAUSS': '3'}
+            self.options["BASIS"] = {"GBASIS": "N21", "NGAUSS": "3"}
         elif basis_type in ["631G", "6-31G"]:
-            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6'}
+            self.options["BASIS"] = {"GBASIS": "N31", "NGAUSS": "6"}
         elif basis_type in ["6311G", "6-311G"]:
-            self.options['BASIS'] = {'GBASIS': 'N311', 'NGAUSS': '6'}
+            self.options["BASIS"] = {"GBASIS": "N311", "NGAUSS": "6"}
         elif basis_type in ["631G*", "6-31G*", "6-31G(D)", "631G(D)"]:
-            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1'}
+            self.options["BASIS"] = {"GBASIS": "N31", "NGAUSS": "6", "NDFUNC": "1"}
         elif basis_type in ["631G**", "6-31G**", "631GDP", "6-31G(D,P)", "631G(D,P)"]:
-            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1', 'NPFUNC': '1'}
-        elif basis_type in ["631+G**", "6-31+G**", "631+GDP", "6-31+G(D,P)", "631+G(D,P)"]:
-            self.options['BASIS'] = {'GBASIS': 'N31', 'NGAUSS': '6', 'NDFUNC': '1', 'NPFUNC': '1',
-                                     'DIFFSP': '.T.', }
+            self.options["BASIS"] = {
+                "GBASIS": "N31",
+                "NGAUSS": "6",
+                "NDFUNC": "1",
+                "NPFUNC": "1",
+            }
+        elif basis_type in [
+            "631+G**",
+            "6-31+G**",
+            "631+GDP",
+            "6-31+G(D,P)",
+            "631+G(D,P)",
+        ]:
+            self.options["BASIS"] = {
+                "GBASIS": "N31",
+                "NGAUSS": "6",
+                "NDFUNC": "1",
+                "NPFUNC": "1",
+                "DIFFSP": ".T.",
+            }
         elif basis_type in ["AM1"]:
-            self.options['BASIS'] = {'GBASIS': 'AM1'}
+            self.options["BASIS"] = {"GBASIS": "AM1"}
         elif basis_type in ["PM3"]:
-            self.options['BASIS'] = {'GBASIS': 'PM3'}
+            self.options["BASIS"] = {"GBASIS": "PM3"}
         elif basis_type in ["MNDO"]:
-            self.options['BASIS'] = {'GBASIS': 'MNDO'}
+            self.options["BASIS"] = {"GBASIS": "MNDO"}
         else:
             logger.error("basis type not found")
-        return self.options['BASIS']
+        return self.options["BASIS"]
 
     def run_type(self, runtype):
-        self.options['contrl']['runtyp'] = runtype
+        self.options["contrl"]["runtyp"] = runtype
 
     def scf_type(self, scftype):
-        self.options['contrl']['scftyp'] = scftype
+        self.options["contrl"]["scftyp"] = scftype
 
     def exec_rungms(self, mol):
         self.gamin = self.write_file(mol)
@@ -302,7 +359,7 @@ class Gamess:
 
         new_mol = self.parse_gamout(self.gamout, mol)
 
-        #os.chdir(self.cwd)
+        # os.chdir(self.cwd)
         if not self.debug:
             os.unlink(self.gamin)
             os.unlink(self.gamout)
@@ -321,8 +378,11 @@ class Gamess:
         if not os.path.isfile(ddikick):
             raise IOError("ddikick not found")
 
-        gamesses = [f for f in os.listdir(gamess_path)
-                    if f.startswith('gamess') and f.endswith('.x')]
+        gamesses = [
+            f
+            for f in os.listdir(gamess_path)
+            if f.startswith("gamess") and f.endswith(".x")
+        ]
         if len(gamesses) < 1:
             raise IOError("gamess.*.x not found")
         gamess = os.path.join(gamess_path, gamesses[0])
@@ -330,48 +390,116 @@ class Gamess:
         hostname = socket.gethostname()
 
         setenv_data = (
-            (" MAKEFP", "efp"), ("GAMMA", "gamma"), ("TRAJECT", "trj"),
-            ("RESTART", "rst"), ("  PUNCH", "dat"), ("  INPUT", "F05"),
-            (" AOINTS", "F08"), (" MOINTS", "F09"), ("DICTNRY", "F10"),
-            ("DRTFILE", "F11"), ("CIVECTR", "F12"), ("CASINTS", "F13"),
-            (" CIINTS", "F14"), (" WORK15", "F15"), (" WORK16", "F16"),
-            ("CSFSAVE", "F17"), ("FOCKDER", "F18"), (" WORK19", "F19"),
-            (" DASORT", "F20"), ("DFTINTS", "F21"), ("DFTGRID", "F22"),
-            (" JKFILE", "F23"), (" ORDINT", "F24"), (" EFPIND", "F25"),
-            ("SVPWRK1", "F26"), ("SVPWRK2", "F27"), ("  MLTPL", "F28"),
-            (" MLTPLT", "F29"), (" DAFL30", "F30"), (" SOINTX", "F31"),
-            (" SOINTY", "F32"), (" SOINTZ", "F33"), (" SORESC", "F34"),
-            ("GCILIST", "F37"), ("HESSIAN", "F38"), ("QMMMTEI", "F39"),
-            ("SOCCDAT", "F40"), (" AABB41", "F41"), (" BBAA42", "F42"),
-            (" BBBB43", "F43"), (" MCQD50", "F50"), (" MCQD51", "F51"),
-            (" MCQD52", "F52"), (" MCQD53", "F53"), (" MCQD54", "F54"),
-            (" MCQD55", "F55"), (" MCQD56", "F56"), (" MCQD57", "F57"),
-            (" MCQD58", "F58"), (" MCQD59", "F59"), (" MCQD60", "F60"),
-            ("NMRINT1", "F61"), ("NMRINT2", "F62"), ("NMRINT3", "F63"),
-            ("NMRINT4", "F64"), ("NMRINT5", "F65"), ("NMRINT6", "F66"),
-            ("ELNUINT", "F67"), ("NUNUINT", "F68"), (" NUMOIN", "F69"),
-            (" GMCREF", "F70"), (" GMCO2R", "F71"), (" GMCROC", "F72"),
-            (" GMCOOC", "F73"), (" GMCCC0", "F74"), (" GMCHMA", "F75"),
-            (" GMCEI1", "F76"), (" GMCEI2", "F77"), (" GMCEOB", "F78"),
-            (" GMCEDT", "F79"), (" GMCERF", "F80"), (" GMCHCR", "F81"),
-            (" GMCGJK", "F82"), (" GMCGAI", "F83"), (" GMCGEO", "F84"),
-            (" GMCTE1", "F85"), (" GMCTE2", "F86"), (" GMCHEF", "F87"),
-            (" GMCMOL", "F88"), (" GMCMOS", "F89"), (" GMCWGT", "F90"),
-            (" GMCRM2", "F91"), (" GMCRM1", "F92"), (" GMCR00", "F93"),
-            (" GMCRP1", "F94"), (" GMCRP2", "F95"), (" GMCVEF", "F96"),
-            (" GMCDIN", "F97"), (" GMC2SZ", "F98"), (" GMCCCS", "F99")
+            (" MAKEFP", "efp"),
+            ("GAMMA", "gamma"),
+            ("TRAJECT", "trj"),
+            ("RESTART", "rst"),
+            ("  PUNCH", "dat"),
+            ("  INPUT", "F05"),
+            (" AOINTS", "F08"),
+            (" MOINTS", "F09"),
+            ("DICTNRY", "F10"),
+            ("DRTFILE", "F11"),
+            ("CIVECTR", "F12"),
+            ("CASINTS", "F13"),
+            (" CIINTS", "F14"),
+            (" WORK15", "F15"),
+            (" WORK16", "F16"),
+            ("CSFSAVE", "F17"),
+            ("FOCKDER", "F18"),
+            (" WORK19", "F19"),
+            (" DASORT", "F20"),
+            ("DFTINTS", "F21"),
+            ("DFTGRID", "F22"),
+            (" JKFILE", "F23"),
+            (" ORDINT", "F24"),
+            (" EFPIND", "F25"),
+            ("SVPWRK1", "F26"),
+            ("SVPWRK2", "F27"),
+            ("  MLTPL", "F28"),
+            (" MLTPLT", "F29"),
+            (" DAFL30", "F30"),
+            (" SOINTX", "F31"),
+            (" SOINTY", "F32"),
+            (" SOINTZ", "F33"),
+            (" SORESC", "F34"),
+            ("GCILIST", "F37"),
+            ("HESSIAN", "F38"),
+            ("QMMMTEI", "F39"),
+            ("SOCCDAT", "F40"),
+            (" AABB41", "F41"),
+            (" BBAA42", "F42"),
+            (" BBBB43", "F43"),
+            (" MCQD50", "F50"),
+            (" MCQD51", "F51"),
+            (" MCQD52", "F52"),
+            (" MCQD53", "F53"),
+            (" MCQD54", "F54"),
+            (" MCQD55", "F55"),
+            (" MCQD56", "F56"),
+            (" MCQD57", "F57"),
+            (" MCQD58", "F58"),
+            (" MCQD59", "F59"),
+            (" MCQD60", "F60"),
+            ("NMRINT1", "F61"),
+            ("NMRINT2", "F62"),
+            ("NMRINT3", "F63"),
+            ("NMRINT4", "F64"),
+            ("NMRINT5", "F65"),
+            ("NMRINT6", "F66"),
+            ("ELNUINT", "F67"),
+            ("NUNUINT", "F68"),
+            (" NUMOIN", "F69"),
+            (" GMCREF", "F70"),
+            (" GMCO2R", "F71"),
+            (" GMCROC", "F72"),
+            (" GMCOOC", "F73"),
+            (" GMCCC0", "F74"),
+            (" GMCHMA", "F75"),
+            (" GMCEI1", "F76"),
+            (" GMCEI2", "F77"),
+            (" GMCEOB", "F78"),
+            (" GMCEDT", "F79"),
+            (" GMCERF", "F80"),
+            (" GMCHCR", "F81"),
+            (" GMCGJK", "F82"),
+            (" GMCGAI", "F83"),
+            (" GMCGEO", "F84"),
+            (" GMCTE1", "F85"),
+            (" GMCTE2", "F86"),
+            (" GMCHEF", "F87"),
+            (" GMCMOL", "F88"),
+            (" GMCMOS", "F89"),
+            (" GMCWGT", "F90"),
+            (" GMCRM2", "F91"),
+            (" GMCRM1", "F92"),
+            (" GMCR00", "F93"),
+            (" GMCRP1", "F94"),
+            (" GMCRP2", "F95"),
+            (" GMCVEF", "F96"),
+            (" GMCDIN", "F97"),
+            (" GMC2SZ", "F98"),
+            (" GMCCCS", "F99"),
         )
 
         for e in setenv_data:
-            os.environ[e[0].strip()] = os.path.join(self.tempdir, self.jobname + "." + e[1])
+            os.environ[e[0].strip()] = os.path.join(
+                self.tempdir, self.jobname + "." + e[1]
+            )
 
         os.environ["ERICFMT"] = os.path.join(gamess_path, "ericfmt.dat")
         os.environ["MCPPATH"] = os.path.join(gamess_path, "mcpdata")
         os.environ["EXTBAS"] = "/dev/null"
         os.environ["NUCBAS"] = "/dev/null"
 
-        exec_string = "%s %s %s -ddi 1 1 %s -scr %s > %s" % \
-            (ddikick, gamess, self.jobname, hostname, self.tempdir, self.gamout)
+        exec_string = "%s %s %s -ddi 1 1 %s -scr %s > %s" % (
+            ddikick,
+            gamess,
+            self.jobname,
+            hostname,
+            self.tempdir,
+            self.gamout,
+        )
 
         logger.info(f"Executeing py_rungms with command {exec_string}")
         self.completed_gamess = subprocess.run(exec_string, shell=True)
@@ -387,8 +515,17 @@ class Gamess:
 
 
 class GamessFromInputFile(Gamess):
-    def __init__(self, jobname, gamin=None, gamout=None, gamess_path=None, rungms_suffix='',
-                 executable_num='00', num_cores=None, reset=False):
+    def __init__(
+        self,
+        jobname,
+        gamin=None,
+        gamout=None,
+        gamess_path=None,
+        rungms_suffix="",
+        executable_num="00",
+        num_cores=None,
+        reset=False,
+    ):
         if jobname is not None:
             if gamin is None:
                 gamin = f"{jobname}.inp"
@@ -397,8 +534,8 @@ class GamessFromInputFile(Gamess):
         self.jobname = jobname
         self.gamin = gamin
         self.gamout = gamout
-        #self.tempdir = mkdtemp()
-        #self.debug = os.environ.get('debug', False)
+        # self.tempdir = mkdtemp()
+        # self.debug = os.environ.get('debug', False)
         self.executable_num = executable_num
         self.err_lines = 10
         if num_cores is None:
@@ -406,27 +543,33 @@ class GamessFromInputFile(Gamess):
         else:
             self.num_cores = num_cores
 
-        #if self.debug:
+        # if self.debug:
         #    print("tmpdir", self.tempdir)
 
         # search gamess_path
         # 1. find environ
         # 2. find path which include ddikick.x
         if gamess_path is None:
-            gamess_path = os.environ.get('GAMESS_HOME', None)
+            gamess_path = os.environ.get("GAMESS_HOME", None)
 
         if gamess_path is None:
             try:
-                gamess_path = list(filter(lambda f: os.path.isfile(os.path.join(f, 'ddikick.x')),
-                                          os.environ['PATH'].split(':')))[0]
+                gamess_path = list(
+                    filter(
+                        lambda f: os.path.isfile(os.path.join(f, "ddikick.x")),
+                        os.environ["PATH"].split(":"),
+                    )
+                )[0]
             except IndexError:
                 print("gamess_path not found")
                 exit()
 
         #  search rungms script
         rungms = None
-        possible_paths = [os.path.join(d, f'rungms{rungms_suffix}')
-                          for d in os.environ['PATH'].split(':')]
+        possible_paths = [
+            os.path.join(d, f"rungms{rungms_suffix}")
+            for d in os.environ["PATH"].split(":")
+        ]
         try:
             rungms = list(filter(lambda f: os.path.isfile(f), possible_paths))[0]
         except IndexError:
@@ -434,18 +577,23 @@ class GamessFromInputFile(Gamess):
 
         self.rungms = rungms
         self.gamess_path = gamess_path
-        self.jobname = ''
-        #self.cwd = os.getcwd()
+        self.jobname = ""
+        # self.cwd = os.getcwd()
 
-        #Minimal options set. Options specified in the options arguments will be
+        # Minimal options set. Options specified in the options arguments will be
         # merged into this options set
         if reset:
             self.reset()
 
     def run(self):
         """"""
-        command = "%s %s %s %i > %s" % (self.rungms, self.gamin, self.executable_num,
-                                        self.num_cores, self.gamout)
+        command = "%s %s %s %i > %s" % (
+            self.rungms,
+            self.gamin,
+            self.executable_num,
+            self.num_cores,
+            self.gamout,
+        )
         self.start_time = datetime.datetime.now()
         logger.info(f"Executing {command}")
         self.completed_gamess = subprocess.run(command, shell=True)
@@ -454,19 +602,19 @@ class GamessFromInputFile(Gamess):
         logger.info(f"Status code: {self.completed_gamess.returncode}")
         if self.completed_gamess.returncode != 0:
             logger.error("Gamess error: {0}".format(self.completed_gamess.stderr))
-        #new_mol = self.parse_gamout(gamout)
+        # new_mol = self.parse_gamout(gamout)
 
-        #$os.chdir(self.cwd)
-        #if not self.debug:
+        # $os.chdir(self.cwd)
+        # if not self.debug:
         #    os.unlink(gamin)
         #    os.unlink(gamout)
+
     def __del__(self):
         # This subclass does not do anything in __del__
         pass
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     g = Gamess()
     mol = Chem.MolFromMolFile("examples/ethane.mol", removeHs=False)
     try:
