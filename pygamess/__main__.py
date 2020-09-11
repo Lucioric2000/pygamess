@@ -26,25 +26,26 @@ if args.output_file is None:
 if args.pygamess_log_file is None:
     args.pygamess_log_file = f"pygamess_{inputfilesplutext[0]}.log"
 yaml = YAML(typ="safe")
-with open(args.emails_yml, "r") as opf:
-    configuration = yaml.load(opf)
-g = gamess.GamessFromInputFile(
-    inputfilesplutext[0],
-    rungms_suffix=args.rungms_suffix,
-    executable_num=args.executable_num,
-    num_cores=args.num_cores,
-    reset=args.reset,
-    gamin=args.input_file,
-    gamout=args.output_file,
-)
+if args.emails_yml is None:
+	configuration = None
+else:
+    try:
+        with open(args.emails_yml, "r") as opf:
+            configuration = yaml.load(opf)
+    except Exception as exc:
+        logger.warning(f"The e-mail configuration file {args.emails_yml} could not be opened "+\
+        	f"because of the error {exc}. However, the simulation will run, and you can always "+\
+        	f"check the sumulation status in the GAMESS output file {args.output_file}.") 
+g = gamess.GamessFromInputFile(inputfilesplutext[0], rungms_suffix=args.rungms_suffix, executable_num=args.executable_num,
+	num_cores=args.num_cores, reset=args.reset, gamin=args.input_file, gamout=args.output_file)
 rootlogger = logging.getLogger()
 logger.info(f"Writing pygamess log to {args.pygamess_log_file}")
 rootlogger.addHandler(logging.FileHandler(args.pygamess_log_file, mode="w"))
 try:
     g.run()
-    bdy = g.send_report_e_mail(args.num_last_lines, configuration)
+    if configuration is not None:
+        bdy = g.send_report_e_mail(args.num_last_lines, configuration)
 except KeyboardInterrupt as exc:
     logger.error(f"Exception when runiing GAMESS: {exc}")
-    bdy = g.send_report_e_mail(
-        args.num_last_lines, configuration, a_priori_exception=exc
-    )
+    if configuration is not None:
+        bdy = g.send_report_e_mail(args.num_last_lines, configuration, a_priori_exception=exc)
