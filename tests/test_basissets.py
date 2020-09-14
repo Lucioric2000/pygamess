@@ -10,7 +10,7 @@ def test_ethane_sto3g():
     g.debug = True
     try:
         newmol = g.run(mol)
-    except GamessError, gerr:
-        print gerr.value
+    except GamessError as gerr:
+        print(gerr.value)
 
     eq_(newmol.GetDoubleProp("total_energy"), -78.30530748)
